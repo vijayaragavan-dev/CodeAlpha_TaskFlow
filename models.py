@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from logging.handlers import RotatingFileHandler
 
 import mysql.connector
@@ -27,6 +28,12 @@ def _setup_db_logging():
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
+
+        console = logging.StreamHandler()
+        console.setLevel(logging.INFO)
+        console.setFormatter(formatter)
+        logger.addHandler(console)
+
         _db_log_handler_setup = True
 
 
@@ -35,20 +42,40 @@ _setup_db_logging()
 _pool = None
 
 
+def _build_pool_kwargs():
+    kwargs = dict(
+        pool_name=Config.DB_POOL_NAME,
+        pool_size=Config.DB_POOL_SIZE,
+        pool_reset_session=True,
+        host=Config.MYSQL_HOST,
+        port=Config.MYSQL_PORT,
+        user=Config.MYSQL_USER,
+        password=Config.MYSQL_PASSWORD,
+        database=Config.MYSQL_DB,
+    )
+    if Config.MYSQL_SSL_CA:
+        kwargs['use_pure'] = True
+        kwargs['ssl_ca'] = Config.MYSQL_SSL_CA
+        kwargs['ssl_verify_cert'] = Config.MYSQL_SSL_VERIFY_SERVER_CERT
+    return kwargs
+
+
+def _reset_pool():
+    global _pool
+    try:
+        if _pool is not None:
+            old_pool = _pool
+            _pool = None
+            del old_pool
+    except Exception:
+        _pool = None
+
+
 def get_db_pool():
     global _pool
     if _pool is None:
         try:
-            _pool = pooling.MySQLConnectionPool(
-                pool_name=Config.DB_POOL_NAME,
-                pool_size=Config.DB_POOL_SIZE,
-                pool_reset_session=True,
-                host=Config.MYSQL_HOST,
-                port=Config.MYSQL_PORT,
-                user=Config.MYSQL_USER,
-                password=Config.MYSQL_PASSWORD,
-                database=Config.MYSQL_DB,
-            )
+            _pool = pooling.MySQLConnectionPool(**_build_pool_kwargs())
             logger.info('Database connection pool created (size=%d)', Config.DB_POOL_SIZE)
         except mysql.connector.Error as e:
             logger.error('Failed to create connection pool: %s', e)
@@ -56,22 +83,54 @@ def get_db_pool():
     return _pool
 
 
-def get_db_connection():
-    pool = get_db_pool()
+def _is_connection_alive(conn):
     try:
-        conn = pool.get_connection()
-        logger.debug('Database connection acquired from pool')
-        return conn
-    except mysql.connector.Error as e:
-        logger.error('Failed to get database connection: %s', e)
-        raise
+        conn.ping(reconnect=False, attempts=1)
+        return True
+    except mysql.connector.Error:
+        return False
+
+
+def get_db_connection():
+    max_attempts = 3
+    last_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            pool = get_db_pool()
+            conn = pool.get_connection()
+
+            if not _is_connection_alive(conn):
+                logger.warning('Database connection stale (attempt %d/%d)', attempt, max_attempts)
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                _reset_pool()
+                if attempt < max_attempts:
+                    time.sleep(2 ** (attempt - 1))
+                continue
+
+            logger.debug('Database connection acquired from pool')
+            return conn
+
+        except mysql.connector.Error as e:
+            last_error = e
+            logger.error('Database connection failed (attempt %d/%d): %s', attempt, max_attempts, e)
+            _reset_pool()
+            if attempt < max_attempts:
+                time.sleep(2 ** (attempt - 1))
+
+    logger.critical('All %d database connection attempts failed', max_attempts)
+    raise last_error
 
 
 def close_connection(conn):
-    if conn and conn.is_connected():
+    if conn:
         try:
-            conn.close()
-            logger.debug('Database connection returned to pool')
+            if conn.is_connected():
+                conn.close()
+                logger.debug('Database connection returned to pool')
         except mysql.connector.Error as e:
             logger.error('Error closing connection: %s', e)
 

@@ -33,7 +33,7 @@ _request_times = []
 bcrypt = Bcrypt()
 login_manager = LoginManager()
 csrf = CSRFProtect()
-socketio = SocketIO(cors_allowed_origins='*', async_mode='gevent')
+socketio = SocketIO(cors_allowed_origins=Config.ALLOWED_ORIGINS.split(',') if Config.ALLOWED_ORIGINS != '*' else '*', async_mode='gevent')
 
 _cache = {}
 _cache_timestamp = {}

@@ -22,6 +22,11 @@ class Config:
     DB_POOL_NAME = os.getenv('DB_POOL_NAME', 'taskflow_pool')
     DB_POOL_SIZE = int(os.getenv('DB_POOL_SIZE', 5))
 
+    MYSQL_SSL_CA = os.getenv('MYSQL_SSL_CA', '')
+    MYSQL_SSL_VERIFY_SERVER_CERT = os.getenv('MYSQL_SSL_VERIFY', 'False').lower() == 'true'
+
+    ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '*')
+
     UPLOAD_FOLDER = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), 'uploads'
     )
