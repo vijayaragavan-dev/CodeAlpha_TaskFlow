@@ -5,7 +5,8 @@ from logging.handlers import RotatingFileHandler
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 
-from app import bcrypt, User
+from config import Config
+from app import bcrypt, User, limiter
 from forms import RegistrationForm, LoginForm
 from models import create_user, get_user_by_email, get_user_by_id, get_dashboard_stats, get_user_projects
 
@@ -36,6 +37,7 @@ def get_auth_logger():
 
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
+@limiter.limit(Config.RATELIMIT_REGISTER)
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('auth.dashboard'))
@@ -59,6 +61,7 @@ def register():
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit(Config.RATELIMIT_LOGIN)
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('auth.dashboard'))

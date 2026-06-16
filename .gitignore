@@ -1,11 +1,7 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 *.pyd
-*.pyc
-*.pyo
-*.pyc
 
 # Virtual Environment
 venv/
@@ -15,24 +11,16 @@ env/
 # Environment Variables
 .env
 
-# IDE - VS Code
+# IDE
 .vscode/
 *.code-workspace
-
-# IDE - JetBrains
 .idea/
 *.iml
-
-# IDE - Sublime Text
 *.sublime-project
 *.sublime-workspace
-
-# IDE - Vim/Neovim
 *.swp
 *.swo
 *~
-
-# IDE - Emacs
 *#
 .#*\
 
@@ -48,12 +36,10 @@ backups/
 
 # Cache & Coverage
 .pytest_cache/
-__pycache__/
 htmlcov/
 .coverage
 .coverage.*
 *.cover
-.coverage.*
 
 # Distribution
 dist/

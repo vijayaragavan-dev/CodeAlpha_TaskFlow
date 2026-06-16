@@ -21,6 +21,12 @@ class Config:
     MYSQL_DB = os.getenv('MYSQL_DB', 'taskflow')
     DB_POOL_NAME = os.getenv('DB_POOL_NAME', 'taskflow_pool')
     DB_POOL_SIZE = int(os.getenv('DB_POOL_SIZE', 5))
+    DB_POOL_RECYCLE = int(os.getenv('DB_POOL_RECYCLE', 3600))
+
+    RATELIMIT_ENABLED = os.getenv('RATELIMIT_ENABLED', 'True').lower() == 'true'
+    RATELIMIT_GLOBAL = os.getenv('RATELIMIT_GLOBAL', '120 per minute')
+    RATELIMIT_LOGIN = os.getenv('RATELIMIT_LOGIN', '10 per minute')
+    RATELIMIT_REGISTER = os.getenv('RATELIMIT_REGISTER', '5 per minute')
 
     MYSQL_SSL_CA = os.getenv('MYSQL_SSL_CA', '')
     MYSQL_SSL_VERIFY_SERVER_CERT = os.getenv('MYSQL_SSL_VERIFY', 'False').lower() == 'true'

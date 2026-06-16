@@ -1,5 +1,8 @@
 import os
 import time
+import signal
+import sys
+import atexit
 import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
@@ -12,6 +15,8 @@ from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, current_user
 from flask_wtf.csrf import CSRFProtect
 from flask_socketio import SocketIO
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from config import Config, config_by_name
 from models import get_user_by_id
@@ -34,6 +39,12 @@ bcrypt = Bcrypt()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 socketio = SocketIO(cors_allowed_origins=Config.ALLOWED_ORIGINS.split(',') if Config.ALLOWED_ORIGINS != '*' else '*', async_mode='gevent')
+
+limiter = Limiter(
+    get_remote_address,
+    default_limits=[Config.RATELIMIT_GLOBAL],
+    enabled=Config.RATELIMIT_ENABLED,
+)
 
 _cache = {}
 _cache_timestamp = {}
@@ -93,11 +104,15 @@ def create_app(config_class=None):
 
     setup_logging(app)
 
+    limiter.init_app(app)
+
     _setup_metrics_middleware(app)
 
     register_error_handlers(app)
 
     register_blueprints(app)
+
+    register_shutdown_handlers(app)
 
     _register_monitoring_routes(app)
 
@@ -305,9 +320,50 @@ def register_template_helpers(app):
         return {'unread_notifications': unread, 'get_user_notifications': get_user_notifications}
 
 
+_shutdown_app = None
+_shutdown_in_progress = False
+
+
+def _cleanup():
+    global _shutdown_in_progress
+    if _shutdown_in_progress:
+        return
+    _shutdown_in_progress = True
+    logger = logging.getLogger(__name__)
+    logger.info('Shutdown signal received, cleaning up...')
+    try:
+        from models import _reset_pool
+        _reset_pool()
+        logger.info('Database connection pool closed')
+    except Exception as e:
+        logger.warning('Error closing database pool: %s', e)
+    try:
+        socketio.stop()
+        logger.info('SocketIO stopped')
+    except Exception as e:
+        logger.warning('Error stopping SocketIO: %s', e)
+    logger.info('Shutdown complete')
+
+
+def _handle_signal(signum, frame):
+    _cleanup()
+    sys.exit(0)
+
+
+def register_shutdown_handlers(app):
+    global _shutdown_app
+    _shutdown_app = app
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+    app.logger.info('Shutdown handlers registered (SIGTERM, SIGINT)')
+
+
 if __name__ == '__main__':
     from config import PORT, FLASK_ENV
     debug = FLASK_ENV == 'development'
     app = create_app()
+    register_shutdown_handlers(app)
+    atexit.register(_cleanup)
     print(f'  TaskFlow v{_VERSION} starting on 0.0.0.0:{PORT} (FLASK_ENV={FLASK_ENV})')
     socketio.run(app, host='0.0.0.0', port=PORT, debug=debug)

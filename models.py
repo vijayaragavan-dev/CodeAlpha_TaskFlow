@@ -40,6 +40,7 @@ def _setup_db_logging():
 _setup_db_logging()
 
 _pool = None
+_pool_created_at = 0
 
 
 def _build_pool_kwargs():
@@ -61,7 +62,7 @@ def _build_pool_kwargs():
 
 
 def _reset_pool():
-    global _pool
+    global _pool, _pool_created_at
     try:
         if _pool is not None:
             old_pool = _pool
@@ -69,14 +70,23 @@ def _reset_pool():
             del old_pool
     except Exception:
         _pool = None
+    _pool_created_at = 0
 
 
 def get_db_pool():
-    global _pool
+    global _pool, _pool_created_at
+    now = time.time()
+    if _pool is not None and _pool_created_at > 0:
+        age = now - _pool_created_at
+        if age > Config.DB_POOL_RECYCLE:
+            logger.info('Pool recycle triggered (age=%.1fs > recycle=%ds)', age, Config.DB_POOL_RECYCLE)
+            _reset_pool()
     if _pool is None:
         try:
             _pool = pooling.MySQLConnectionPool(**_build_pool_kwargs())
-            logger.info('Database connection pool created (size=%d)', Config.DB_POOL_SIZE)
+            _pool_created_at = time.time()
+            logger.info('Database connection pool created (size=%d, recycle=%ds)',
+                        Config.DB_POOL_SIZE, Config.DB_POOL_RECYCLE)
         except mysql.connector.Error as e:
             logger.error('Failed to create connection pool: %s', e)
             raise
