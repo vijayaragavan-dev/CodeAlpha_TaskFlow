@@ -13,7 +13,7 @@ from flask_login import LoginManager, UserMixin, current_user
 from flask_wtf.csrf import CSRFProtect
 from flask_socketio import SocketIO
 
-from config import Config
+from config import Config, config_by_name
 from models import get_user_by_id
 
 _VERSION = '1.0.0'
@@ -71,7 +71,9 @@ def load_user(user_id):
     return None
 
 
-def create_app(config_class=Config):
+def create_app(config_class=None):
+    if config_class is None:
+        config_class = config_by_name
     app = Flask(
         __name__,
         static_folder='static',
@@ -304,5 +306,8 @@ def register_template_helpers(app):
 
 
 if __name__ == '__main__':
+    from config import PORT, FLASK_ENV
+    debug = FLASK_ENV == 'development'
     app = create_app()
-    socketio.run(app, debug=False)
+    print(f'  TaskFlow v{_VERSION} starting on 0.0.0.0:{PORT} (FLASK_ENV={FLASK_ENV})')
+    socketio.run(app, host='0.0.0.0', port=PORT, debug=debug)

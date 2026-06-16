@@ -146,13 +146,18 @@ Open **http://localhost:5000** in your browser.
 ## Environment Variables
 
 | Variable | Required | Default | Description |
-|---|---|---|---|
+|---|---|---|---|---|
 | `SECRET_KEY` | **Yes** | — | Flask secret key (min 32 chars) |
+| `FLASK_ENV` | No | `production` | `development`, `production`, or `testing` |
+| `PORT` | No | `5000` | Server port (cloud platforms set this automatically) |
+| `SESSION_COOKIE_SECURE` | No | `false` | Set `true` when using HTTPS |
 | `MYSQL_HOST` | No | `localhost` | MySQL host |
 | `MYSQL_PORT` | No | `3306` | MySQL port |
 | `MYSQL_USER` | No | `root` | MySQL user |
 | `MYSQL_PASSWORD` | **Yes** | — | MySQL password |
 | `MYSQL_DB` | No | `taskflow` | Database name |
+| `DB_POOL_NAME` | No | `taskflow_pool` | Connection pool name |
+| `DB_POOL_SIZE` | No | `5` | Connection pool size |
 
 ---
 
@@ -278,20 +283,73 @@ TASKFLOW/
 
 ## Deployment
 
-### Render
+TaskFlow supports multiple deployment platforms. The `render.yaml` file in the root provides automated Render configuration.
+
+### Render (Recommended)
 
 1. Push to GitHub
-2. Create new Web Service on Render
+2. Create new **Web Service** on Render
+3. Connect your repository
+4. Render auto-detects `render.yaml` — or manually configure:
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT wsgi:app`
+   - **Health Check Path:** `/health`
+5. Add environment variables (see `.env.example`):
+   - `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB` — for your Render MySQL database
+   - `SECRET_KEY` — Render can auto-generate this
+   - `SESSION_COOKIE_SECURE` — set to `true`
+   - `FLASK_ENV` — set to `production`
+6. Deploy
+
+The included `render.yaml` pre-configures all settings. You only need to add the MySQL credentials via Render dashboard.
+
+### Railway
+
+1. Push to GitHub
+2. Create new project on Railway
 3. Connect repository
-4. Set build command: `pip install -r requirements.txt`
-5. Set start command: `gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT wsgi:app`
-6. Add environment variables (see `.env.example`)
-7. Deploy
+4. Add a **MySQL** database service via Railway dashboard
+5. Set build command: `pip install -r requirements.txt`
+6. Set start command: `gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT wsgi:app`
+7. Add environment variables (Railway auto-injects `PORT`):
+   - `SECRET_KEY` — generate a random key
+   - `MYSQL_HOST` — from Railway MySQL service
+   - `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB` — from Railway MySQL
+   - `SESSION_COOKIE_SECURE` — set to `true`
+   - `FLASK_ENV` — set to `production`
+8. Deploy
+
+Railway automatically provides `PORT`. The app binds to `0.0.0.0:$PORT` at startup.
+
+### Vercel (Static & API)
+
+> **Note:** Vercel supports Flask via serverless functions (`@vercel/python`), but SocketIO real-time features will NOT work on Vercel's serverless infrastructure.
+
+To deploy the app (without real-time features):
+
+1. Push to GitHub
+2. Import project on Vercel
+3. Vercel auto-detects `vercel.json`
+4. Add environment variables in Vercel dashboard
+5. Deploy
+
+The included `vercel.json` configures the Flask app as a serverless function and serves static files.
 
 ### Local Production
 
 ```bash
 gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:8000 wsgi:app
+```
+
+### Docker (Manual)
+
+```dockerfile
+FROM python:3.13-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD ["gunicorn", "--worker-class", "gevent", "--workers", "1", "--bind", "0.0.0.0:8000", "wsgi:app"]
 ```
 
 ---

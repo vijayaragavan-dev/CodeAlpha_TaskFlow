@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 _basedir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(_basedir, '.env'))
 
+PORT = int(os.getenv('PORT', 5000))
+FLASK_ENV = os.getenv('FLASK_ENV', 'production')
+
 
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY')
@@ -29,7 +32,7 @@ class Config:
     WTF_CSRF_TIME_LIMIT = 3600
 
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
 
@@ -41,3 +44,23 @@ class Config:
     def is_allowed_file(filename):
         return '.' in filename and \
                filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
+
+
+class DevelopmentConfig(Config):
+    SESSION_COOKIE_SECURE = False
+
+
+class ProductionConfig(Config):
+    SESSION_COOKIE_SECURE = True
+
+
+class TestingConfig(Config):
+    TESTING = True
+    WTF_CSRF_ENABLED = False
+
+
+config_by_name = {
+    'development': DevelopmentConfig,
+    'production': ProductionConfig,
+    'testing': TestingConfig,
+}.get(FLASK_ENV, ProductionConfig)
