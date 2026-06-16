@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - {% block title %}Manage Projects Efficiently{% endblock %}</title>
+    <meta name="description" content="TaskFlow is a production-ready project management platform for managing projects, tracking tasks via Kanban boards, collaborating through comments, and receiving real-time updates.">
+    <meta name="keywords" content="taskflow, project management, kanban, task tracking, flask, python, collaboration">
+    <meta name="author" content="TaskFlow Team">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#0d2137">
+
+    <meta property="og:title" content="TaskFlow - Project Management Platform">
+    <meta property="og:description" content="Manage projects efficiently with TaskFlow. Kanban boards, real-time collaboration, and team task tracking.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:image" content="{{ url_for('static', filename='images/og-image.png', _external=True) }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TaskFlow">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="TaskFlow - Project Management Platform">
+    <meta name="twitter:description" content="Manage projects efficiently with TaskFlow. Kanban boards, real-time collaboration, and team task tracking.">
+    <meta name="twitter:image" content="{{ url_for('static', filename='images/og-image.png', _external=True) }}">
+
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
+    <link rel="alternate icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/app-icon.png') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <a href="#main-content" class="visually-hidden-focusable btn btn-primary position-absolute start-0 z-3 m-2">Skip to main content</a>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary" role="navigation" aria-label="Main navigation">
+        <div class="container-fluid">
+            {% if current_user.is_authenticated %}
+            <button class="btn btn-outline-light me-2 d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-label="Toggle sidebar">
+                <i class="bi bi-list"></i>
+            </button>
+            {% endif %}
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}" aria-label="TaskFlow Home">
+                <i class="bi bi-check2-square"></i> TaskFlow
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_authenticated %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.dashboard') }}">
+                                <i class="bi bi-speedometer2"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('projects.list_projects') }}">
+                                <i class="bi bi-folder"></i> Projects
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('tasks.search') }}">
+                                <i class="bi bi-search"></i> Search
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link position-relative" href="{{ url_for('notifications.list_notifications') }}" aria-label="Notifications{% if unread_notifications > 0 %}, {{ unread_notifications }} unread{% endif %}">
+                                <i class="bi bi-bell"></i>
+                                {% if unread_notifications > 0 %}
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger notification-badge" style="font-size:0.6rem;" aria-label="{{ unread_notifications }} unread notifications">
+                                    {{ unread_notifications }}
+                                </span>
+                                {% endif %}
+                            </a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="User menu">
+                                <i class="bi bi-person-circle"></i> {{ current_user.username }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-label="User options">
+                                <li><a class="dropdown-item" href="{{ url_for('auth.dashboard') }}">Dashboard</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('projects.list_projects') }}">Projects</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('tasks.search') }}">Search Tasks</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                                    <i class="bi bi-box-arrow-right"></i> Logout
+                                </a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.login') }}">
+                                <i class="bi bi-box-arrow-in-right"></i> Login
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.register') }}">
+                                <i class="bi bi-person-plus"></i> Register
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% if current_user.is_authenticated %}
+    <div class="layout-wrapper">
+        <aside class="sidebar bg-dark" id="sidebar" aria-label="Sidebar navigation">
+            <div class="sidebar-header">
+                <h6 class="text-white-50 text-uppercase small fw-bold">Navigation</h6>
+            </div>
+            <ul class="sidebar-nav" role="list">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'dashboard' in request.endpoint %}active{% endif %}" href="{{ url_for('auth.dashboard') }}" aria-current="{% if request.endpoint and 'dashboard' in request.endpoint %}page{% endif %}">
+                        <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'projects' in request.endpoint %}active{% endif %}" href="{{ url_for('projects.list_projects') }}" aria-current="{% if request.endpoint and 'projects' in request.endpoint %}page{% endif %}">
+                        <i class="bi bi-folder"></i> <span>Projects</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'search' in request.endpoint %}active{% endif %}" href="{{ url_for('tasks.search') }}" aria-current="{% if request.endpoint and 'search' in request.endpoint %}page{% endif %}">
+                        <i class="bi bi-search"></i> <span>Search</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'notifications' in request.endpoint %}active{% endif %}" href="{{ url_for('notifications.list_notifications') }}" aria-current="{% if request.endpoint and 'notifications' in request.endpoint %}page{% endif %}">
+                        <i class="bi bi-bell"></i> <span>Notifications {% if unread_notifications > 0 %}<span class="badge bg-danger ms-1 notification-badge">{{ unread_notifications }}</span>{% endif %}</span>
+                    </a>
+                </li>
+            </ul>
+            <div class="sidebar-footer mt-auto">
+                <ul class="sidebar-nav" role="list">
+                    <li class="nav-item">
+                        <a class="nav-link text-danger" href="{{ url_for('auth.logout') }}">
+                            <i class="bi bi-box-arrow-right"></i> <span>Logout</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </aside>
+        <main class="main-content" id="main-content">
+    {% endif %}
+
+            <div class="container-fluid mt-4">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </div>
+
+    {% if current_user.is_authenticated %}
+        </main>
+    </div>
+    {% endif %}
+
+    <footer class="footer mt-auto py-3" role="contentinfo">
+        <div class="container text-center">
+            <span class="text-muted">TaskFlow v{{ app_version }} &mdash; {{ app_tagline }} &copy; {{ now().year }}</span>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+            navigator.serviceWorker.register('{{ url_for('static', filename='service-worker.js') }}').then(function(reg) {
+                console.log('ServiceWorker registered:', reg.scope);
+            }).catch(function(err) {
+                console.log('ServiceWorker registration failed:', err);
+            });
+        });
+    }
+    </script>
+    {% if current_user.is_authenticated %}
+    <span id="current-user-id" data-user-id="{{ current_user.id }}" style="display:none"></span>
+    <script src="{{ url_for('static', filename='js/socket.js') }}"></script>
+    {% endif %}
+    {% block scripts %}{% endblock %}
+</body>
+</html>

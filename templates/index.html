@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Manage Projects Efficiently{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8 text-center">
+        <div class="py-5">
+            <h1 class="display-3 fw-bold text-primary">TaskFlow</h1>
+            <p class="lead text-muted mb-2">Manage projects efficiently with TaskFlow.</p>
+            <p class="text-muted mt-3 mb-4">
+                A modern project management tool to organize your work, collaborate with your team, and deliver results.
+            </p>
+            <div class="d-flex justify-content-center gap-3">
+                <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg px-4">Get Started</a>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary btn-lg px-4">Login</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

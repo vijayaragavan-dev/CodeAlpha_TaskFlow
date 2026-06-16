@@ -1,0 +1,114 @@
+name: TaskFlow CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testpass
+          MYSQL_DATABASE: taskflow_test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 black isort pytest pytest-cov
+
+      - name: Check syntax
+        run: |
+          python -m py_compile app.py
+          python -m py_compile config.py
+          python -m py_compile models.py
+          python -m py_compile wsgi.py
+
+      - name: Lint with flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --statistics
+
+      - name: Check formatting with black
+        run: black --check --diff . || echo "Formatting issues found (non-blocking)"
+
+      - name: Run unit tests
+        env:
+          MYSQL_HOST: localhost
+          MYSQL_USER: root
+          MYSQL_PASSWORD: testpass
+          MYSQL_DB: taskflow_test
+          SECRET_KEY: ci-secret-key-2024
+        run: |
+          python tests/auth_test.py
+          python tests/project_test.py
+          python tests/task_test.py
+          python tests/kanban_test.py
+          python tests/comment_test.py
+          python tests/search_test.py
+          python tests/notification_test.py
+          python tests/socketio_test.py
+
+      - name: Run integration tests
+        env:
+          MYSQL_HOST: localhost
+          MYSQL_USER: root
+          MYSQL_PASSWORD: testpass
+          MYSQL_DB: taskflow_test
+          SECRET_KEY: ci-secret-key-2024
+        run: python tests/integration_test.py
+
+      - name: Verify app creation
+        env:
+          MYSQL_HOST: localhost
+          MYSQL_USER: root
+          MYSQL_PASSWORD: testpass
+          MYSQL_DB: taskflow_test
+          SECRET_KEY: ci-secret-key-2024
+        run: python -c "from app import create_app; app = create_app(); print('App created successfully')"
+
+      - name: Verify health endpoint
+        env:
+          MYSQL_HOST: localhost
+          MYSQL_USER: root
+          MYSQL_PASSWORD: testpass
+          MYSQL_DB: taskflow_test
+          SECRET_KEY: ci-secret-key-2024
+        run: |
+          python -c "
+          from app import create_app
+          import logging
+          logging.disable(logging.CRITICAL)
+          app = create_app()
+          with app.test_client() as c:
+              r = c.get('/health')
+              assert r.status_code == 200
+              data = r.get_json()
+              assert data['status'] == 'healthy'
+              print('Health check: PASS')
+          "
+
+      - name: Verify deployment files
+        run: |
+          test -f Procfile && echo "Procfile: OK"
+          test -f runtime.txt && echo "runtime.txt: OK"
+          test -f render.yaml && echo "render.yaml: OK"
+          test -f wsgi.py && echo "wsgi.py: OK"
+          test -f VERSION && echo "VERSION: OK"

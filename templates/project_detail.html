@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }}{% endblock %}
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <div>
+                    <a href="{{ url_for('projects.list_projects') }}" class="btn btn-sm btn-outline-secondary me-2">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                    <span class="h4 mb-0">{{ project.name }}</span>
+                </div>
+                <div class="d-flex gap-2">
+                    {% if project.owner_id == current_user.id %}
+                    <a href="{{ url_for('projects.edit', id=project.id) }}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-8">
+                        <h6 class="text-muted text-uppercase small fw-bold">Description</h6>
+                        <p class="mb-0">
+                            {% if project.description %}
+                                {{ project.description }}
+                            {% else %}
+                                <span class="text-muted fst-italic">No description provided.</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="text-muted text-uppercase small fw-bold">Details</h6>
+                                <hr class="my-2">
+                                <p class="mb-1"><strong>Owner:</strong> {{ project.owner_name }}</p>
+                                <p class="mb-1"><strong>Created:</strong> {{ project.created_at.strftime('%B %d, %Y') if project.created_at else 'N/A' }}</p>
+                                <p class="mb-1"><strong>Members:</strong> {{ members|length + 1 }}</p>
+                                <p class="mb-0"><strong>Tasks:</strong> {{ task_count }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-people"></i> Members</h5>
+                {% if project.owner_id == current_user.id %}
+                <a href="{{ url_for('projects.members', id=project.id) }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-gear"></i> Manage
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if members %}
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex align-items-center">
+                        <div class="avatar bg-primary text-white me-2">{{ project.owner_name[0]|upper }}</div>
+                        <span>{{ project.owner_name }} <small class="text-muted">(Owner)</small></span>
+                    </li>
+                    {% for member in members[:5] %}
+                    <li class="list-group-item d-flex align-items-center">
+                        <div class="avatar bg-secondary text-white me-2">{{ member.username[0]|upper }}</div>
+                        <span>{{ member.username }}</span>
+                    </li>
+                    {% endfor %}
+                    {% if members|length > 5 %}
+                    <li class="list-group-item text-center">
+                        <a href="{{ url_for('projects.members', id=project.id) }}" class="text-decoration-none">+{{ members|length - 5 }} more</a>
+                    </li>
+                    {% endif %}
+                </ul>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-muted mb-0">No members yet.</p>
+                    {% if project.owner_id == current_user.id %}
+                    <a href="{{ url_for('projects.members', id=project.id) }}" class="btn btn-sm btn-outline-primary mt-2">Add Members</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-list-task"></i> Tasks</h5>
+                <a href="{{ url_for('tasks.create', project_id=project.id) }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus-lg"></i> New Task
+                </a>
+                <a href="{{ url_for('projects.kanban', id=project.id) }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-columns-gap"></i> Kanban
+                </a>
+            </div>
+            <div class="card-body p-0">
+                {% if tasks %}
+                {% set status_colors = {'To Do': 'secondary', 'In Progress': 'primary', 'Completed': 'success'} %}
+                {% set priority_colors = {'Low': 'success', 'Medium': 'warning text-dark', 'High': 'danger'} %}
+                <div class="list-group list-group-flush">
+                    {% for task in tasks[:8] %}
+                    <a href="{{ url_for('tasks.detail', task_id=task.id) }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ task.title[:60] }}{% if task.title|length > 60 %}...{% endif %}</strong>
+                                <div class="mt-1">
+                                    <span class="badge bg-{{ status_colors.get(task.status, 'secondary') }}">{{ task.status }}</span>
+                                    <span class="badge bg-{{ priority_colors.get(task.priority, 'secondary') }}">{{ task.priority }}</span>
+                                    {% if task.assigned_name %}
+                                    <small class="text-muted ms-2"><i class="bi bi-person"></i> {{ task.assigned_name }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <small class="text-muted">{{ task.created_at.strftime('%b %d') if task.created_at else '' }}</small>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% if tasks|length > 8 %}
+                <div class="text-center py-2">
+                    <small class="text-muted">+{{ tasks|length - 8 }} more tasks</small>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-muted mb-0">No tasks yet.</p>
+                    <a href="{{ url_for('tasks.create', project_id=project.id) }}" class="btn btn-sm btn-outline-primary mt-2">Create First Task</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if project.owner_id == current_user.id %}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete <strong>{{ project.name }}</strong>? This action cannot be undone. All associated tasks and data will be permanently deleted.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{{ url_for('projects.delete', id=project.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

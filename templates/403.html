@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Access Denied - TaskFlow{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 text-center">
+        <div class="error-card">
+            <div class="mb-4">
+                <i class="bi bi-shield-lock display-1 text-danger"></i>
+            </div>
+            <h1 class="display-1 text-danger fw-bold">403</h1>
+            <h2 class="mb-3">Access Denied</h2>
+            <p class="lead text-muted mb-2">You do not have permission to access this resource.</p>
+            <p class="text-muted mb-4">Please contact the project owner if you believe this is a mistake.</p>
+            <div class="d-flex justify-content-center gap-3">
+                <a href="{{ url_for('auth.dashboard') if current_user.is_authenticated else url_for('index') }}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-speedometer2"></i> Go to Dashboard
+                </a>
+                <a href="javascript:history.back()" class="btn btn-outline-secondary btn-lg">
+                    <i class="bi bi-arrow-left"></i> Go Back
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

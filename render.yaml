@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: taskflow
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT wsgi:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: MYSQL_HOST
+        value: localhost
+      - key: MYSQL_PORT
+        value: "3306"
+      - key: MYSQL_USER
+        value: root
+      - key: MYSQL_PASSWORD
+        value: ""
+      - key: MYSQL_DB
+        value: taskflow
+      - key: DB_POOL_NAME
+        value: taskflow_pool
+      - key: DB_POOL_SIZE
+        value: "5"

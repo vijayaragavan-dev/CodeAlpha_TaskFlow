@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}{{ task.title }}{% endblock %}
+{% block content %}
+<span id="socket-project-id" data-project-id="{{ task.project_id }}" style="display:none"></span>
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <div>
+                    <a href="{{ url_for('projects.detail', id=task.project_id) }}" class="btn btn-sm btn-outline-secondary me-2">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                    <a href="{{ url_for('projects.kanban', id=task.project_id) }}" class="btn btn-sm btn-outline-info me-2">
+                        <i class="bi bi-columns-gap"></i> Kanban
+                    </a>
+                    <span class="h4 mb-0">{{ task.title }}</span>
+                </div>
+                <div class="d-flex gap-2">
+                    {% if current_user.id == task.project_owner_id or current_user.id == task.assigned_to %}
+                    <a href="{{ url_for('tasks.edit', task_id=task.id) }}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-8">
+                        <h6 class="text-muted text-uppercase small fw-bold">Description</h6>
+                        <p class="mb-0">
+                            {% if task.description %}
+                                {{ task.description }}
+                            {% else %}
+                                <span class="text-muted fst-italic">No description provided.</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="text-muted text-uppercase small fw-bold">Details</h6>
+                                <hr class="my-2">
+                                <p class="mb-1"><strong>Project:</strong> {{ task.project_name }}</p>
+                                <p class="mb-1">
+                                    <strong>Status:</strong>
+                                    {% set status_colors = {'To Do': 'secondary', 'In Progress': 'primary', 'Completed': 'success'} %}
+                                    <span class="badge bg-{{ status_colors.get(task.status, 'secondary') }}">{{ task.status }}</span>
+                                </p>
+                                <p class="mb-1">
+                                    <strong>Priority:</strong>
+                                    {% set priority_colors = {'Low': 'success', 'Medium': 'warning text-dark', 'High': 'danger'} %}
+                                    <span class="badge bg-{{ priority_colors.get(task.priority, 'secondary') }}">{{ task.priority }}</span>
+                                </p>
+                                <p class="mb-1"><strong>Assigned to:</strong> {{ task.assigned_name or 'Unassigned' }}</p>
+                                <p class="mb-1"><strong>Deadline:</strong> {{ task.deadline.strftime('%b %d, %Y') if task.deadline else 'No deadline' }}</p>
+                                <p class="mb-0"><strong>Created:</strong> {{ task.created_at.strftime('%b %d, %Y') if task.created_at else 'N/A' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-chat-dots"></i> Comments (<span id="commentCount">{{ comment_count }}</span>)</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('tasks.add_comment', task_id=task.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <textarea class="form-control" name="comment" rows="3" placeholder="Write a comment..." maxlength="1000" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Add Comment
+                    </button>
+                </form>
+
+                <hr class="my-4">
+
+                {% if comments %}
+                <div class="comment-list">
+                    {% for comment in comments %}
+                    <div class="comment-card">
+                        <div class="comment-header">
+                            <div class="comment-avatar">
+                                {{ comment.username[0]|upper }}
+                            </div>
+                            <div class="comment-meta">
+                                <strong>{{ comment.username }}</strong>
+                                <span class="comment-time">{{ relative_time(comment.created_at) }}</span>
+                            </div>
+                            {% if current_user.id == comment.user_id or current_user.id == task.project_owner_id %}
+                            <div class="ms-auto">
+                                <form method="POST" action="{{ url_for('tasks.delete_comment_route', comment_id=comment.id) }}" class="d-inline" onsubmit="return confirm('Delete this comment?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="comment-body">
+                            {{ comment.comment }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-chat-dots display-4 text-muted"></i>
+                    <p class="text-muted mt-2 mb-0">No comments yet. Be the first to comment!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete <strong>{{ task.title }}</strong>? This action cannot be undone.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{{ url_for('tasks.delete', task_id=task.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

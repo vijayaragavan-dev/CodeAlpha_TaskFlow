@@ -1,0 +1,98 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc
+*.pyo
+*.pyc
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# Environment Variables
+.env
+
+# IDE - VS Code
+.vscode/
+*.code-workspace
+
+# IDE - JetBrains
+.idea/
+*.iml
+
+# IDE - Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# IDE - Vim/Neovim
+*.swp
+*.swo
+*~
+
+# IDE - Emacs
+*#
+.#*\
+
+# Logs
+logs/
+*.log
+
+# Uploads
+uploads/
+
+# Backup Files
+backups/
+
+# Cache & Coverage
+.pytest_cache/
+__pycache__/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+.coverage.*
+
+# Distribution
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# OS Files
+.DS_Store
+Thumbs.db
+Desktop.ini
+nul
+NUL
+CONOUT$
+
+# Migration stubs (empty)
+migrations/
+
+# Documentation build
+_site/
+site/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Type checking
+.mypy_cache/
+.ruff_cache/
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Secrets
+*.key
+*.pem
+*.cert

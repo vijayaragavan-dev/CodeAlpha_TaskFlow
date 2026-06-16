@@ -1,0 +1,21 @@
+# Runtime
+Flask==3.0.0
+Flask-Bcrypt==1.0.1
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-SocketIO==5.3.6
+python-dotenv==1.0.0
+mysql-connector-python==9.0.0
+email-validator==2.1.1
+WTForms==3.1.2
+gunicorn==23.0.0
+gevent==26.5.0
+gevent-websocket==0.10.1
+
+# Dev / CI
+pre-commit==3.6.0
+flake8==7.0.0
+black==24.2.0
+isort==5.13.2
+pytest==8.1.1
+pytest-cov==4.1.0

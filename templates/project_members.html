@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Members - {{ project.name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <a href="{{ url_for('projects.detail', id=project.id) }}" class="btn btn-sm btn-outline-secondary me-2">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+        <h3 class="d-inline mb-0"><i class="bi bi-people"></i> Members</h3>
+        <small class="text-muted ms-2">{{ project.name }}</small>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Add Member</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('projects.add_member_route', id=project.id) }}">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.username_or_email.label(class="form-label") }}
+                        {{ form.username_or_email(class="form-control", placeholder="Enter username or email") }}
+                    </div>
+                    {{ form.submit(class="btn btn-primary w-100") }}
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Project Members ({{ members|length + 1 }})</h5>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex align-items-center">
+                        <div class="avatar bg-primary text-white me-3">{{ project.owner_name[0]|upper }}</div>
+                        <div>
+                            <strong>{{ project.owner_name }}</strong>
+                            <small class="text-muted d-block">Owner</small>
+                        </div>
+                        <span class="ms-auto"><span class="badge bg-primary">Owner</span></span>
+                    </li>
+                    {% for member in members %}
+                    <li class="list-group-item d-flex align-items-center">
+                        <div class="avatar bg-secondary text-white me-3">{{ member.username[0]|upper }}</div>
+                        <div>
+                            <strong>{{ member.username }}</strong>
+                            <small class="text-muted d-block">{{ member.email }}</small>
+                        </div>
+                        <form action="{{ url_for('projects.remove_member_route', id=project.id, user_id=member.id) }}" method="POST" class="ms-auto">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove {{ member.username }} from project?')">
+                                <i class="bi bi-person-x"></i>
+                            </button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

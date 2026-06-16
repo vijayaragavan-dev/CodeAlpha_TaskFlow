@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0"><i class="bi bi-bell"></i> Notifications</h2>
+    <div>
+        {% if notifications %}
+        <form action="{{ url_for('notifications.read_all') }}" method="POST" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-check-all"></i> Mark All Read
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        {% if notifications %}
+        <div class="list-group list-group-flush">
+            {% for notif in notifications %}
+            <div class="list-group-item d-flex justify-content-between align-items-center {% if not notif.is_read %}list-group-item-primary{% endif %}">
+                <div class="d-flex align-items-center gap-3 flex-grow-1">
+                    <div>
+                        {% if not notif.is_read %}
+                        <span class="badge bg-primary rounded-pill" title="Unread">New</span>
+                        {% else %}
+                        <span class="badge bg-secondary rounded-pill">Read</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex-grow-1">
+                        <p class="mb-0">{{ notif.message }}</p>
+                        <small class="text-muted">{{ relative_time(notif.created_at) }}</small>
+                    </div>
+                </div>
+                <div class="d-flex gap-1 ms-3">
+                    {% if not notif.is_read %}
+                    <form action="{{ url_for('notifications.read', notification_id=notif.id) }}" method="POST" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline-success" title="Mark as read">
+                            <i class="bi bi-check-lg"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                    <form action="{{ url_for('notifications.delete', notification_id=notif.id) }}" method="POST" style="display:inline" onsubmit="return confirm('Delete this notification?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-bell-slash display-1 text-muted"></i>
+            <h4 class="mt-3 text-muted">No notifications</h4>
+            <p class="text-muted">You're all caught up!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

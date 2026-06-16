@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Search Tasks{% endblock %}
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-search"></i> Search Tasks</h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('tasks.search') }}" class="row g-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" name="q" placeholder="Search by title or description..." value="{{ q or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select" name="status">
+                            <option value="">All Statuses</option>
+                            {% for s in ['To Do', 'In Progress', 'Completed'] %}
+                            <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select" name="priority">
+                            <option value="">All Priorities</option>
+                            {% for p in ['Low', 'Medium', 'High'] %}
+                            <option value="{{ p }}" {% if filters.priority == p %}selected{% endif %}>{{ p }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" class="form-control" name="deadline_from" placeholder="From" value="{{ filters.deadline_from or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" class="form-control" name="deadline_to" placeholder="To" value="{{ filters.deadline_to or '' }}">
+                    </div>
+                    <div class="col-12 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                        <a href="{{ url_for('tasks.search') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Clear
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                {% if q or filters.status or filters.priority %}
+                Search Results
+                {% else %}
+                All Tasks
+                {% endif %}
+                <small class="text-muted">({{ total }} task{% if total != 1 %}s{% endif %} found)</small>
+            </h5>
+        </div>
+    </div>
+</div>
+
+{% if tasks %}
+<div class="row g-3 mb-4">
+    {% set status_colors = {'To Do': 'secondary', 'In Progress': 'primary', 'Completed': 'success'} %}
+    {% set priority_colors = {'Low': 'success', 'Medium': 'warning text-dark', 'High': 'danger'} %}
+    {% for task in tasks %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="card-title mb-0">
+                        <a href="{{ url_for('tasks.detail', task_id=task.id) }}" class="text-decoration-none">{{ task.title }}</a>
+                    </h6>
+                </div>
+                <p class="card-text text-muted small mb-2">
+                    {% if task.description %}
+                        {{ task.description[:120] }}{% if task.description|length > 120 %}...{% endif %}
+                    {% else %}
+                        <span class="fst-italic">No description</span>
+                    {% endif %}
+                </p>
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                    <span class="badge bg-{{ status_colors.get(task.status, 'secondary') }}">{{ task.status }}</span>
+                    <span class="badge bg-{{ priority_colors.get(task.priority, 'secondary') }}">{{ task.priority }}</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <i class="bi bi-folder"></i> {{ task.project_name }}
+                    </small>
+                    {% if task.assigned_name %}
+                    <small class="text-muted">
+                        <i class="bi bi-person"></i> {{ task.assigned_name }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<nav>
+    <ul class="pagination justify-content-center">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('tasks.search', page=page-1, per_page=per_page, q=q, status=filters.status, priority=filters.priority, deadline_from=filters.deadline_from, deadline_to=filters.deadline_to) }}">
+                <i class="bi bi-chevron-left"></i> Previous
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link"><i class="bi bi-chevron-left"></i> Previous</span>
+        </li>
+        {% endif %}
+
+        {% for p in range(1, total_pages + 1) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('tasks.search', page=p, per_page=per_page, q=q, status=filters.status, priority=filters.priority, deadline_from=filters.deadline_from, deadline_to=filters.deadline_to) }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('tasks.search', page=page+1, per_page=per_page, q=q, status=filters.status, priority=filters.priority, deadline_from=filters.deadline_from, deadline_to=filters.deadline_to) }}">
+                Next <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link">Next <i class="bi bi-chevron-right"></i></span>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-search display-1 text-muted"></i>
+    <h4 class="mt-3 text-muted">No tasks found</h4>
+    <p class="text-muted">
+        {% if q or filters.status or filters.priority %}
+        Try adjusting your search or filters.
+        {% else %}
+        No tasks are available in your projects.
+        {% endif %}
+    </p>
+    <a href="{{ url_for('tasks.search') }}" class="btn btn-outline-primary">
+        <i class="bi bi-x-circle"></i> Clear Filters
+    </a>
+</div>
+{% endif %}
+{% endblock %}
