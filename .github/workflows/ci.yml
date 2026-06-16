@@ -28,6 +28,16 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Import database schema
+        run: |
+          mysql -u root -ptestpass -h 127.0.0.1 -e "CREATE DATABASE IF NOT EXISTS taskflow_test;"
+          sed 's/USE taskflow;/USE taskflow_test;/g' database.sql \
+            | mysql -u root -ptestpass -h 127.0.0.1 taskflow_test
+          echo "Tables created:"
+          mysql -u root -ptestpass -h 127.0.0.1 -e \
+            "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='taskflow_test';" \
+            --batch --skip-column-names 2>/dev/null | paste -sd ',' || echo "(check manually)"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
