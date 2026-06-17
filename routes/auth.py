@@ -96,10 +96,14 @@ def logout():
 @login_required
 def dashboard():
     from app import cache_get, cache_set
-    cache_key = f'dashboard_stats_{current_user.id}'
-    stats = cache_get(cache_key)
+    stats_cache_key = f'dashboard_stats_{current_user.id}'
+    stats = cache_get(stats_cache_key)
     if stats is None:
         stats = get_dashboard_stats(current_user.id)
-        cache_set(cache_key, stats)
-    projects = get_user_projects(current_user.id)
+        cache_set(stats_cache_key, stats)
+    projects_cache_key = f'user_projects_{current_user.id}'
+    projects = cache_get(projects_cache_key, max_age=15)
+    if projects is None:
+        projects = get_user_projects(current_user.id)
+        cache_set(projects_cache_key, projects)
     return render_template('dashboard.html', stats=stats, projects=projects)

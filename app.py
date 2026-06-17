@@ -10,13 +10,14 @@ from datetime import datetime
 from gevent import monkey
 monkey.patch_all()
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, send_from_directory, make_response
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, current_user
 from flask_wtf.csrf import CSRFProtect
 from flask_socketio import SocketIO
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_compress import Compress
 
 from config import Config, config_by_name
 from models import get_user_by_id
@@ -38,6 +39,7 @@ _request_times = []
 bcrypt = Bcrypt()
 login_manager = LoginManager()
 csrf = CSRFProtect()
+compress = Compress()
 socketio = SocketIO(cors_allowed_origins=Config.ALLOWED_ORIGINS.split(',') if Config.ALLOWED_ORIGINS != '*' else '*', async_mode='gevent')
 
 limiter = Limiter(
@@ -98,6 +100,7 @@ def create_app(config_class=None):
     login_manager.init_app(app)
     csrf.init_app(app)
     socketio.init_app(app)
+    compress.init_app(app)
 
     login_manager.login_view = 'auth.login'
     login_manager.login_message_category = 'info'
@@ -107,6 +110,7 @@ def create_app(config_class=None):
     limiter.init_app(app)
 
     _setup_metrics_middleware(app)
+    _setup_static_cache_headers(app)
 
     register_error_handlers(app)
 
@@ -120,8 +124,29 @@ def create_app(config_class=None):
 
     register_template_helpers(app)
 
+    _ensure_indexes_at_startup(app)
+
     app.logger.info('TaskFlow application created successfully (v%s)', _VERSION)
     return app
+
+
+def _setup_static_cache_headers(app):
+    @app.after_request
+    def add_cache_headers(response):
+        if response.content_type and response.content_type.startswith(('text/css', 'text/javascript', 'application/javascript', 'image/')):
+            response.headers.setdefault('Cache-Control', 'public, max-age=31536000, immutable')
+        elif response.content_type and response.content_type.startswith('text/html'):
+            response.headers.setdefault('Cache-Control', 'no-cache, private, must-revalidate')
+        return response
+
+
+def _ensure_indexes_at_startup(app):
+    try:
+        from models import ensure_optimal_indexes
+        ensure_optimal_indexes()
+        app.logger.info('Database indexes verified')
+    except Exception as e:
+        app.logger.warning('Could not verify indexes: %s', e)
 
 
 def _setup_metrics_middleware(app):
@@ -310,14 +335,30 @@ def register_template_helpers(app):
 
     @app.context_processor
     def inject_notification_count():
-        from models import count_unread_notifications, get_user_notifications
+        from models import count_unread_notifications, get_user_notifications as _raw_get_user_notifications
         unread = 0
         try:
             if current_user.is_authenticated:
-                unread = count_unread_notifications(current_user.id)
+                cache_key = f'unread_count_{current_user.id}'
+                cached = cache_get(cache_key, max_age=5)
+                if cached is not None:
+                    unread = cached
+                else:
+                    unread = count_unread_notifications(current_user.id)
+                    cache_set(cache_key, unread)
         except Exception:
             pass
-        return {'unread_notifications': unread, 'get_user_notifications': get_user_notifications}
+
+        def _cached_get_user_notifications(user_id, limit=50):
+            cache_key = f'notifications_{user_id}_{limit}'
+            cached = cache_get(cache_key, max_age=5)
+            if cached is not None:
+                return cached
+            result = _raw_get_user_notifications(user_id, limit)
+            cache_set(cache_key, result)
+            return result
+
+        return {'unread_notifications': unread, 'get_user_notifications': _cached_get_user_notifications}
 
 
 _shutdown_app = None

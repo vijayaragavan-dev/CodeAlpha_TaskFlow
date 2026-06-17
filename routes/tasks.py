@@ -8,9 +8,9 @@ from flask_login import login_required, current_user
 from forms import TaskForm, CommentForm
 from models import (
     create_task, update_task, delete_task, get_task_by_id, get_project_tasks,
-    get_project_by_id, get_project_members, is_project_owner, is_project_member,
-    count_project_tasks, move_task_status, create_comment, delete_comment,
-    get_task_comments, count_comments, search_tasks, get_user_project_ids,
+    get_project_by_id, get_project_members, is_project_member,
+    move_task_status, create_comment, delete_comment,
+    get_task_comments, search_tasks, get_user_project_ids,
     create_notification, fetch_one
 )
 from app import socketio
@@ -41,12 +41,13 @@ def get_task_logger():
     return _task_logger
 
 
-def _get_project_member_choices(project_id):
+def _get_project_member_choices(project_id, project=None):
     members = get_project_members(project_id)
     choices = [(0, 'Unassigned')]
     for m in members:
         choices.append((str(m['id']), m['username']))
-    project = get_project_by_id(project_id)
+    if project is None:
+        project = get_project_by_id(project_id)
     if project:
         already = [m['id'] for m in members]
         if project['owner_id'] not in already:
@@ -69,10 +70,11 @@ def create(project_id):
     project = get_project_by_id(project_id)
     if not project:
         abort(404)
-    if not is_project_member(project_id, current_user.id) and not is_project_owner(project_id, current_user.id):
+    is_owner = current_user.id == project['owner_id']
+    if not is_owner and not is_project_member(project_id, current_user.id):
         abort(403)
     form = TaskForm()
-    form.assigned_to.choices = _get_project_member_choices(project_id)
+    form.assigned_to.choices = _get_project_member_choices(project_id, project)
     if form.validate_on_submit():
         title = form.title.data.strip()
         description = form.description.data.strip() if form.description.data else ''
@@ -110,10 +112,11 @@ def detail(task_id):
     project = get_project_by_id(task['project_id'])
     if not project:
         abort(404)
-    if not is_project_member(task['project_id'], current_user.id) and not is_project_owner(task['project_id'], current_user.id):
+    if (current_user.id != task['project_owner_id'] and
+        not is_project_member(task['project_id'], current_user.id)):
         abort(403)
     comments = get_task_comments(task_id)
-    comment_count = count_comments(task_id)
+    comment_count = len(comments)
     form = CommentForm()
     return render_template('task_detail.html', task=task, project=project,
                            comments=comments, comment_count=comment_count, form=form)
@@ -128,13 +131,13 @@ def edit(task_id):
     project = get_project_by_id(task['project_id'])
     if not project:
         abort(404)
-    if not _can_modify_task(task) and not is_project_owner(task['project_id'], current_user.id):
+    if not _can_modify_task(task) and current_user.id != task['project_owner_id']:
         get_task_logger().warning(
             'Unauthorized edit attempt: user=%d task=%d', current_user.id, task_id
         )
         abort(403)
     form = TaskForm(obj=task)
-    form.assigned_to.choices = _get_project_member_choices(task['project_id'])
+    form.assigned_to.choices = _get_project_member_choices(task['project_id'], project)
     if form.validate_on_submit():
         title = form.title.data.strip()
         description = form.description.data.strip() if form.description.data else ''
@@ -178,7 +181,7 @@ def delete(task_id):
     project = get_project_by_id(task['project_id'])
     if not project:
         abort(404)
-    if not _can_modify_task(task) and not is_project_owner(task['project_id'], current_user.id):
+    if not _can_modify_task(task) and current_user.id != task['project_owner_id']:
         get_task_logger().warning(
             'Unauthorized delete attempt: user=%d task=%d', current_user.id, task_id
         )
@@ -199,7 +202,8 @@ def add_comment(task_id):
     task = get_task_by_id(task_id)
     if not task:
         abort(404)
-    if not is_project_member(task['project_id'], current_user.id) and not is_project_owner(task['project_id'], current_user.id):
+    if (current_user.id != task['project_owner_id'] and
+        not is_project_member(task['project_id'], current_user.id)):
         abort(403)
     form = CommentForm()
     if form.validate_on_submit():
@@ -250,18 +254,16 @@ def add_comment(task_id):
 def delete_comment_route(comment_id):
     from models import fetch_one
     comment = fetch_one(
-        'SELECT c.*, t.project_id FROM comments c '
-        'JOIN tasks t ON c.task_id = t.id WHERE c.id=%s',
+        'SELECT c.*, t.project_id, p.owner_id AS project_owner_id FROM comments c '
+        'JOIN tasks t ON c.task_id = t.id '
+        'JOIN projects p ON t.project_id = p.id WHERE c.id=%s',
         (comment_id,)
     )
     if not comment:
         abort(404)
-    project = get_project_by_id(comment['project_id'])
-    if not project:
-        abort(404)
     can_delete = (
         current_user.id == comment['user_id'] or
-        current_user.id == project['owner_id']
+        current_user.id == comment['project_owner_id']
     )
     if not can_delete:
         get_task_logger().warning(
@@ -345,11 +347,8 @@ def move_task(task_id):
     if not task:
         return jsonify({'success': False, 'error': 'Task not found'}), 404
 
-    project = get_project_by_id(task['project_id'])
-    if not project:
-        return jsonify({'success': False, 'error': 'Project not found'}), 404
-
-    if not is_project_member(task['project_id'], current_user.id) and not is_project_owner(task['project_id'], current_user.id):
+    if (current_user.id != task['project_owner_id'] and
+        not is_project_member(task['project_id'], current_user.id)):
         get_task_logger().warning(
             'Unauthorized move attempt: user=%d task=%d', current_user.id, task_id
         )

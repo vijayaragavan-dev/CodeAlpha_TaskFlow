@@ -275,7 +275,8 @@ def create_project(name, description, owner_id):
 
 def get_project_by_id(project_id):
     return fetch_one(
-        'SELECT p.*, u.username AS owner_name '
+        'SELECT p.id, p.name, p.description, p.owner_id, p.created_at, '
+        'u.username AS owner_name '
         'FROM projects p JOIN users u ON p.owner_id = u.id '
         'WHERE p.id=%s',
         (project_id,)
@@ -286,13 +287,13 @@ def get_user_projects(user_id):
     return fetch_all(
         'SELECT p.id, p.name, p.description, p.owner_id, p.created_at, '
         'u.username AS owner_name, '
-        'COUNT(DISTINCT t.id) AS task_count '
+        'COALESCE(t.task_count, 0) AS task_count '
         'FROM projects p '
         'JOIN users u ON p.owner_id = u.id '
         'LEFT JOIN project_members pm ON p.id = pm.project_id '
-        'LEFT JOIN tasks t ON t.project_id = p.id '
+        'LEFT JOIN (SELECT project_id, COUNT(*) AS task_count FROM tasks GROUP BY project_id) t ON t.project_id = p.id '
         'WHERE p.owner_id=%s OR pm.user_id=%s '
-        'GROUP BY p.id, p.name, p.description, p.owner_id, p.created_at, u.username '
+        'GROUP BY p.id, p.name, p.description, p.owner_id, p.created_at, u.username, t.task_count '
         'ORDER BY p.created_at DESC',
         (user_id, user_id)
     )
@@ -392,7 +393,9 @@ def delete_task(task_id):
 
 def get_task_by_id(task_id):
     return fetch_one(
-        'SELECT t.*, u.username AS assigned_name, p.name AS project_name, p.owner_id AS project_owner_id '
+        'SELECT t.id, t.project_id, t.title, t.description, t.assigned_to, '
+        't.priority, t.status, t.deadline, t.created_at, '
+        'u.username AS assigned_name, p.name AS project_name, p.owner_id AS project_owner_id '
         'FROM tasks t '
         'LEFT JOIN users u ON t.assigned_to = u.id '
         'JOIN projects p ON t.project_id = p.id '
@@ -403,7 +406,9 @@ def get_task_by_id(task_id):
 
 def get_project_tasks(project_id):
     return fetch_all(
-        'SELECT t.*, u.username AS assigned_name '
+        'SELECT t.id, t.project_id, t.title, t.description, t.assigned_to, '
+        't.priority, t.status, t.deadline, t.created_at, '
+        'u.username AS assigned_name '
         'FROM tasks t '
         'LEFT JOIN users u ON t.assigned_to = u.id '
         'WHERE t.project_id=%s '
@@ -414,7 +419,9 @@ def get_project_tasks(project_id):
 
 def get_tasks_by_user(user_id):
     return fetch_all(
-        'SELECT t.*, p.name AS project_name '
+        'SELECT t.id, t.project_id, t.title, t.description, t.assigned_to, '
+        't.priority, t.status, t.deadline, t.created_at, '
+        'p.name AS project_name '
         'FROM tasks t JOIN projects p ON t.project_id = p.id '
         'WHERE t.assigned_to=%s '
         'ORDER BY t.created_at DESC',
@@ -486,14 +493,23 @@ def count_comments(task_id):
     return row['cnt'] if row else 0
 
 
+_project_ids_cache = {}
+
 def get_user_project_ids(user_id):
+    from app import cache_get, cache_set
+    cache_key = f'project_ids_{user_id}'
+    cached = cache_get(cache_key, max_age=30)
+    if cached is not None:
+        return cached
     rows = fetch_all(
         'SELECT id FROM projects WHERE owner_id=%s '
         'UNION '
         'SELECT project_id FROM project_members WHERE user_id=%s',
         (user_id, user_id)
     )
-    return [r['id'] for r in rows]
+    result = [r['id'] for r in rows]
+    cache_set(cache_key, result)
+    return result
 
 
 def search_tasks(user_id, q=None, status=None, priority=None,
@@ -539,7 +555,9 @@ def search_tasks(user_id, q=None, status=None, priority=None,
 
     offset = (page - 1) * per_page
     tasks = fetch_all(
-        'SELECT t.*, u.username AS assigned_name, p.name AS project_name '
+        'SELECT t.id, t.project_id, t.title, t.description, t.assigned_to, '
+        't.priority, t.status, t.deadline, t.created_at, '
+        'u.username AS assigned_name, p.name AS project_name '
         'FROM tasks t '
         'LEFT JOIN users u ON t.assigned_to = u.id '
         'JOIN projects p ON t.project_id = p.id '
@@ -572,7 +590,9 @@ def move_task_status(task_id, new_status):
 
 def get_kanban_tasks(project_id):
     tasks = fetch_all(
-        'SELECT t.*, u.username AS assigned_name '
+        'SELECT t.id, t.project_id, t.title, t.description, t.assigned_to, '
+        't.priority, t.status, t.deadline, t.created_at, '
+        'u.username AS assigned_name '
         'FROM tasks t '
         'LEFT JOIN users u ON t.assigned_to = u.id '
         'WHERE t.project_id=%s '
@@ -689,41 +709,43 @@ def _log_notification(action, notif_id, user_id, message):
         pass
 
 
-def add_notification_created_at_index():
+def _ensure_index(index_name, table, columns, db=None):
+    if db is None:
+        db = Config.MYSQL_DB
     try:
-        execute_query(
-            'CREATE INDEX IF NOT EXISTS idx_notifications_created_at '
-            'ON notifications (created_at)'
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT COUNT(*) FROM information_schema.statistics '
+            'WHERE table_schema=%s AND table_name=%s AND index_name=%s',
+            (db, table, index_name)
         )
-    except Exception:
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                'SELECT COUNT(*) FROM information_schema.statistics '
-                'WHERE table_schema=%s AND table_name="notifications" AND index_name="idx_notifications_created_at"',
-                (Config.MYSQL_DB,)
-            )
-            exists = cursor.fetchone()[0] > 0
-            cursor.close()
-            close_connection(conn)
-            if not exists:
-                execute_query(
-                    'CREATE INDEX idx_notifications_created_at ON notifications (created_at)'
-                )
-                logger.info('Index idx_notifications_created_at created')
-        except Exception as e:
-            logger.warning('Could not create index: %s', e)
+        exists = cursor.fetchone()[0] > 0
+        cursor.close()
+        close_connection(conn)
+        if not exists:
+            cols = ', '.join(columns)
+            execute_query(f'CREATE INDEX {index_name} ON {table} ({cols})')
+            logger.info('Index %s created on %s (%s)', index_name, table, cols)
+    except Exception as e:
+        logger.warning('Could not create index %s: %s', index_name, e)
+
+
+def ensure_optimal_indexes():
+    _ensure_index('idx_notifications_user_read', 'notifications', ['user_id', 'is_read'])
+    _ensure_index('idx_notifications_user_created', 'notifications', ['user_id', 'created_at'])
+    _ensure_index('idx_notifications_created_at', 'notifications', ['created_at'])
+    _ensure_index('idx_tasks_project_status', 'tasks', ['project_id', 'status'])
 
 
 def get_dashboard_stats(user_id):
     row = fetch_one(
         'SELECT '
-        'COUNT(DISTINCT p.id) AS total_projects, '
-        'COUNT(DISTINCT t.id) AS total_tasks, '
-        'SUM(CASE WHEN t.status=%s THEN 1 ELSE 0 END) AS completed_tasks, '
-        'SUM(CASE WHEN t.status!=%s THEN 1 ELSE 0 END) AS pending_tasks, '
-        'SUM(CASE WHEN DATE(t.deadline)=CURDATE() THEN 1 ELSE 0 END) AS due_today '
+        'COALESCE(COUNT(DISTINCT p.id), 0) AS total_projects, '
+        'COALESCE(COUNT(DISTINCT t.id), 0) AS total_tasks, '
+        'COALESCE(SUM(CASE WHEN t.status=%s THEN 1 ELSE 0 END), 0) AS completed_tasks, '
+        'COALESCE(SUM(CASE WHEN t.status!=%s THEN 1 ELSE 0 END), 0) AS pending_tasks, '
+        'COALESCE(SUM(CASE WHEN DATE(t.deadline)=CURDATE() THEN 1 ELSE 0 END), 0) AS due_today '
         'FROM projects p '
         'LEFT JOIN project_members pm ON p.id = pm.project_id '
         'LEFT JOIN tasks t ON t.project_id = p.id '

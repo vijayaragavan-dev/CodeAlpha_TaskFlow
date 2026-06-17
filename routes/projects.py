@@ -8,10 +8,10 @@ from flask_login import login_required, current_user
 from forms import ProjectForm, MemberForm
 from models import (
     create_project, get_project_by_id, get_user_projects,
-    update_project, delete_project, get_dashboard_stats,
+    update_project, delete_project,
     add_member, remove_member, get_project_members,
-    is_project_owner, get_user_by_email, fetch_one,
-    get_project_tasks, count_project_tasks, is_project_member,
+    is_project_owner, fetch_one,
+    get_project_tasks, is_project_member,
     get_kanban_tasks, create_notification
 )
 from app import socketio
@@ -77,7 +77,7 @@ def kanban(id):
     project = get_project_by_id(id)
     if not project:
         abort(404)
-    if not is_project_member(id, current_user.id) and not is_project_owner(id, current_user.id):
+    if current_user.id != project['owner_id'] and not is_project_member(id, current_user.id):
         abort(403)
     tasks = get_kanban_tasks(id)
     return render_template('kanban.html', project=project, tasks=tasks)
@@ -91,10 +91,12 @@ def detail(id):
         abort(404)
     members = get_project_members(id)
     tasks = get_project_tasks(id)
-    task_count = count_project_tasks(id)
+    task_count = len(tasks)
+    is_member = (current_user.id == project['owner_id'] or
+                 any(m['id'] == current_user.id for m in members))
     return render_template('project_detail.html', project=project,
                            members=members, tasks=tasks, task_count=task_count,
-                           is_member=is_project_member(id, current_user.id))
+                           is_member=is_member)
 
 
 @projects_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
